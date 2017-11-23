@@ -11,8 +11,7 @@
 - name: create WAF rules
   aws_waf_rule:
     name: "{{ item.name }}"
-    type: "{{ item.type }}"
-    conditions: "{{ item.filters }}"
+    conditions: "{{ item.conditions }}"
     purge_conditions: yes
     state: present
     profile: "{{ profile|default(omit) }}"
@@ -23,6 +22,6 @@
     name: "{{ waf_web_acl.name }}"
     rules: "{{ waf_web_acl.rules }}"
     purge_rules: yes
+    default_action: "{{ waf_web_acl.default_action }}"
     state: present
     profile: "{{ profile|default(omit) }}"
-    default_action: "{{ waf_web_acl.default_action }}"
