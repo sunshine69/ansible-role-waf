@@ -147,6 +147,7 @@ from ansible.module_utils.ec2 import boto3_conn, get_aws_connection_info, ec2_ar
 #############################################################
 
 # from ansible.module_utils.aws.waf import list_rules_with_backoff, list_web_acls_with_backoff, get_change_token
+from ansible.module_utils.ec2 import AWSRetry
 
 
 @AWSRetry.backoff(tries=5, delay=5, backoff=2.0)

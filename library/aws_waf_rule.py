@@ -123,9 +123,7 @@ except ImportError:
 
 from ansible.module_utils.aws.core import AnsibleAWSModule
 from ansible.module_utils.ec2 import boto3_conn, get_aws_connection_info, ec2_argument_spec
-from ansible.module_utils.ec2 import camel_dict_to_snake_dict, AWSRetry
-
-
+from ansible.module_utils.ec2 import camel_dict_to_snake_dict
 
 
 #############################################################
@@ -134,6 +132,7 @@ from ansible.module_utils.ec2 import camel_dict_to_snake_dict, AWSRetry
 
 # from ansible.module_utils.aws.waf import get_change_token, list_rules_with_backoff, MATCH_LOOKUP
 # from ansible.module_utils.aws.waf import get_web_acl_with_backoff, list_web_acls_with_backoff
+from ansible.module_utils.ec2 import AWSRetry
 
 
 MATCH_LOOKUP = {
