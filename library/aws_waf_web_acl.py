@@ -227,7 +227,7 @@ def find_and_update_web_acl(client, module, web_acl_id):
             client.update_web_acl(
                 WebACLId=acl['WebACLId'],
                 ChangeToken=get_change_token(client, module),
-                Updates=insertions + deletions,
+                Updates=deletions + insertions,
                 DefaultAction=acl['DefaultAction']
             )
         except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
