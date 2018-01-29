@@ -16,9 +16,11 @@ description:
 version_added: "2.5"
 
 author:
-- Mike Mochan (@mmochan)
-- Will Thames (@willthames)
-extends_documentation_fragment: aws
+  - Mike Mochan (@mmochan)
+  - Will Thames (@willthames)
+extends_documentation_fragment:
+  - aws
+  - ec2
 options:
     name:
         description: Name of the Web Application Firewall rule
@@ -36,12 +38,12 @@ options:
         - absent
         default: present
     conditions:
-        description:
-          - list of conditions used in the rule. Each condition should
-            contain C(type): one of [I(byte), I(geo), I(ip), I(size), I(sql) or I(xss)]
-            C(negated): whether the condition should be negated, and C(condition),
-            the name of the existing condition. M(aws_waf_condition) can be used to
-            create new conditions
+        description: >
+          list of conditions used in the rule. Each condition should
+          contain I(type): which is one of [C(byte), C(geo), C(ip), C(size), C(sql) or C(xss)]
+          I(negated): whether the condition should be negated, and C(condition),
+          the name of the existing condition. M(aws_waf_condition) can be used to
+          create new conditions
     purge_conditions:
         description:
           - Whether or not to remove conditions that are not passed when updating `conditions`.
@@ -245,8 +247,9 @@ def find_and_update_rule(client, module, rule_id):
         try:
             paginator = client.get_paginator(method)
             func = paginator.paginate().build_full_result
-        except botocore.exceptions.OperationNotPageableError:
+        except (KeyError, botocore.exceptions.OperationNotPageableError):
             # list_geo_match_sets and list_regex_match_sets do not have a paginator
+            # and throw different exceptions
             func = getattr(client, method)
         try:
             pred_results = func()[MATCH_LOOKUP[condition_type]['conditionset'] + 's']
@@ -356,7 +359,7 @@ def ensure_rule_absent(client, module):
     in_use_web_acls = find_rule_in_web_acls(client, module, rule_id)
     if in_use_web_acls:
         web_acl_names = ', '.join(in_use_web_acls)
-        module.fail_json("Rule %s is in use by Web ACL(s)" %
+        module.fail_json("Rule %s is in use by Web ACL(s) %s" %
                          (module.params['name'], web_acl_names))
     if rule_id:
         remove_rule_conditions(client, module, rule_id)
@@ -364,7 +367,7 @@ def ensure_rule_absent(client, module):
             return True, client.delete_rule(RuleId=rule_id, ChangeToken=get_change_token(client, module))
         except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
             module.fail_json_aws(e, msg='Could not delete rule')
-    return False, None
+    return False, {}
 
 
 def main():

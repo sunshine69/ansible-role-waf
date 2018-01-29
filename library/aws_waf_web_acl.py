@@ -22,9 +22,11 @@ description:
 version_added: "2.5"
 
 author:
-- Mike Mochan (@mmochan)
-- Will Thames (@willthames)
-extends_documentation_fragment: aws
+  - Mike Mochan (@mmochan)
+  - Will Thames (@willthames)
+extends_documentation_fragment:
+  - aws
+  - ec2
 options:
     name:
         description: Name of the Web Application Firewall ACL to manage
@@ -227,7 +229,7 @@ def find_and_update_web_acl(client, module, web_acl_id):
             client.update_web_acl(
                 WebACLId=acl['WebACLId'],
                 ChangeToken=get_change_token(client, module),
-                Updates=deletions + insertions,
+                Updates=insertions + deletions,
                 DefaultAction=acl['DefaultAction']
             )
         except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
