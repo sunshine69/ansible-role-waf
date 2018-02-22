@@ -1,18 +1,11 @@
 #!/usr/bin/python
-# This file is part of Ansible
-#
-# Ansible is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Ansible is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+# Copyright (c) 2017 Ansible Project
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
 DOCUMENTATION = '''
 module: aws_waf_web_acl
 short_description: create and delete WAF Web ACLs
@@ -172,6 +165,12 @@ def get_change_token(client, module):
         module.fail_json_aws(e, msg="Couldn't obtain change token")
 
 
+@AWSRetry.backoff(tries=10, delay=2, backoff=2.0, catch_extra_error_codes=['WAFStaleDataException'])
+def run_func_with_change_token_backoff(client, module, params, func):
+    params['ChangeToken'] = get_change_token(client, module)
+    return func(**params)
+
+
 #############################################################
 # END of unmerged changes from ansible.module_utils.aws.waf
 #############################################################
@@ -224,16 +223,26 @@ def find_and_update_web_acl(client, module, web_acl_id):
     insertions = [format_for_update(rule, 'INSERT') for rule in missing]
     deletions = [format_for_update(rule, 'DELETE') for rule in extras]
     changed = bool(insertions + deletions)
-    if changed:
+
+    # Purge rules before adding new ones in case a deletion shares the same
+    # priority as an insertion.
+    params = {
+        'WebACLId': acl['WebACLId'],
+        'DefaultAction': acl['DefaultAction']
+    }
+    if deletions:
         try:
-            client.update_web_acl(
-                WebACLId=acl['WebACLId'],
-                ChangeToken=get_change_token(client, module),
-                Updates=insertions + deletions,
-                DefaultAction=acl['DefaultAction']
-            )
+            params['Updates'] = deletions
+            run_func_with_change_token_backoff(client, module, params, client.update_web_acl)
         except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
             module.fail_json_aws(e, msg='Could not update Web ACL')
+    if insertions:
+        try:
+            params['Updates'] = insertions
+            run_func_with_change_token_backoff(client, module, params, client.update_web_acl)
+        except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
+            module.fail_json_aws(e, msg='Could not update Web ACL')
+    if changed:
         acl = get_web_acl(client, module, web_acl_id)
     return changed, acl
 
@@ -255,8 +264,8 @@ def remove_rules_from_web_acl(client, module, web_acl_id):
     acl = get_web_acl(client, module, web_acl_id)
     deletions = [format_for_update(rule, 'DELETE') for rule in acl['Rules']]
     try:
-        client.update_web_acl(WebACLId=acl['WebACLId'], ChangeToken=get_change_token(client, module),
-                              Updates=deletions, DefaultAction=acl['DefaultAction'])
+        params = {'WebACLId': acl['WebACLId'], 'DefaultAction': acl['DefaultAction'], 'Updates': deletions}
+        run_func_with_change_token_backoff(client, module, params, client.update_web_acl)
     except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
         module.fail_json_aws(e, msg='Could not remove rule')
 
@@ -274,9 +283,8 @@ def ensure_web_acl_present(client, module):
             metric_name = re.sub(r'[^A-Za-z0-9]', '', module.params['name'])
         default_action = module.params['default_action'].upper()
         try:
-            new_web_acl = client.create_web_acl(Name=name, MetricName=metric_name,
-                                                DefaultAction={'Type': default_action},
-                                                ChangeToken=get_change_token(client, module))
+            params = {'Name': name, 'MetricName': metric_name, 'DefaultAction': {'Type': default_action}}
+            new_web_acl = run_func_with_change_token_backoff(client, module, params, client.create_web_acl)
         except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
             module.fail_json_aws(e, msg='Could not create Web ACL')
         (changed, result) = find_and_update_web_acl(client, module, new_web_acl['WebACL']['WebACLId'])
@@ -290,7 +298,7 @@ def ensure_web_acl_absent(client, module):
         if web_acl['Rules']:
             remove_rules_from_web_acl(client, module, web_acl_id)
         try:
-            client.delete_web_acl(WebACLId=web_acl_id, ChangeToken=get_change_token(client, module))
+            run_func_with_change_token_backoff(client, module, {'WebACLId': web_acl_id}, client.delete_web_acl)
             return True, {}
         except (botocore.exceptions.ClientError, botocore.exceptions.BotoCoreError) as e:
             module.fail_json_aws(e, msg='Could not delete Web ACL')
