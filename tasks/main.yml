@@ -1,27 +1,7 @@
-- name: create WAF conditions
-  aws_waf_condition:
-    name: "{{ item.name }}"
-    type: "{{ item.type }}"
-    filters: "{{ item.filters }}"
-    purge_filters: yes
-    state: present
-    profile: "{{ profile|default(omit) }}"
-  with_items: "{{ waf_conditions }}"
-
-- name: create WAF rules
-  aws_waf_rule:
-    name: "{{ item.name }}"
-    conditions: "{{ item.conditions }}"
-    purge_conditions: yes
-    state: present
-    profile: "{{ profile|default(omit) }}"
-  with_items: "{{ waf_rules }}"
-
-- name: create WAF Web ACL
-  aws_waf_web_acl:
-    name: "{{ waf_web_acl.name }}"
-    rules: "{{ waf_web_acl.rules }}"
-    purge_rules: yes
-    default_action: "{{ waf_web_acl.default_action }}"
-    state: present
-    profile: "{{ profile|default(omit) }}"
+# See https://docs.aws.amazon.com/general/latest/gr/rande.html#ec2_region - The
+# default region below is for CloudFront WAF creation. For ALB WAF we need to
+# set it from inventory
+- include_tasks: "{{ stage|default('create') }}_waf.yml"
+  with_items: "{{ waf_regions|default(['us-east-1']) }}"
+  loop_control:
+    loop_var: task_item
